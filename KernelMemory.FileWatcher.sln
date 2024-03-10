@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34511.84
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KernelMemory.FileWatcher", "Filewatcher.Ingestion\KernelMemory.FileWatcher.csproj", "{F89748B4-2E07-4834-BFEB-3390D814375A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KernelMemory.FileWatcher", "KernelMemory.FileWatcher\KernelMemory.FileWatcher.csproj", "{F89748B4-2E07-4834-BFEB-3390D814375A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
