@@ -1,7 +1,5 @@
-﻿using System.Collections.Concurrent;
-using KernelMemory.FileWatcher.Configuration;
+﻿using KernelMemory.FileWatcher.Configuration;
 using KernelMemory.FileWatcher.Messages;
-using MediatR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -9,26 +7,25 @@ namespace KernelMemory.FileWatcher.Services
 {
     internal interface IFileWatcherService
     {
-        Task Watch();
+        void Watch();
     }
 
     internal class FileWatcherService : IFileWatcherService
     {
-        private readonly ConcurrentQueue<FileSystemEventArgs> eventQueue = new();
         private readonly ILogger<FileWatcherService> logger;
         private readonly IFileWatcherFactory fileWatcherFactory;
-        private readonly IMediator mediatr;
         private readonly FileWatcherOptions options;
+        private readonly IMessageStore messageStore;
 
-        public FileWatcherService(ILogger<FileWatcherService> logger,IFileWatcherFactory fileWatcherFactory,IMediator mediatr,IOptions<FileWatcherOptions> options)
+        public FileWatcherService(ILogger<FileWatcherService> logger,IFileWatcherFactory fileWatcherFactory,IMessageStore messageStore,IOptions<FileWatcherOptions> options)
         {
             this.logger = logger;
             this.fileWatcherFactory = fileWatcherFactory;
-            this.mediatr = mediatr;
+            this.messageStore = messageStore;
             this.options = options.Value;
         }
 
-        public async Task Watch()
+        public void Watch()
         {
             foreach (var directory in options.Directories)
             {
@@ -42,63 +39,41 @@ namespace KernelMemory.FileWatcher.Services
 
                 watcher.EnableRaisingEvents = true;
             }
-
-            await ProcessEvents();
         }
 
         private void EnqueueEvent(object sender, FileSystemEventArgs e)
         {
             //we need to throttle the events here, as filewatcher can raise multiple events (of the same type) for a single file change
-            if(!eventQueue.Any(i => i.Name==e.Name && i.ChangeType == e.ChangeType))
+            var eventType = ConvertEventTypes(e.ChangeType);
+            if (!messageStore.Peek(i => i.Event.FileName==e.Name && i.Event.EventType.Equals(eventType)))
             {
-                eventQueue.Enqueue(e);
+                messageStore.Add(new FileEvent { EventType = eventType, FileName = e.Name ?? "n/a", Directory = e.FullPath });
             }
-        }
-
-        private async Task ProcessEvents()
-        {
-            while (true)
+            else
             {
-                if (eventQueue.TryDequeue(out var fileEvent))
-                {
-                    await HandleEvent(fileEvent);
-                }
-                else
-                {
-                    // Sleep for a short duration to avoid busy waiting
-                    await Task.Delay(100);
-                }
-            }
-        }
-
-        private async Task HandleEvent(FileSystemEventArgs e)
-        {
-            switch (e.ChangeType)
-            {
-                case WatcherChangeTypes.Changed:
-                    await mediatr.Send(new FileMessage { MessageType = MessageType.Update, FileName = e.Name, Directory = e.FullPath });
-                    logger.LogInformation($"File {e.Name} updated");
-                    break;
-                case WatcherChangeTypes.Created:
-                    await mediatr.Send(new FileMessage { MessageType = MessageType.Create, FileName = e.Name, Directory = e.FullPath });
-                    logger.LogInformation($"File {e.Name} created");
-                    break;
-                case WatcherChangeTypes.Deleted:
-                    await mediatr.Send(new FileMessage { MessageType = MessageType.Delete, FileName = e.Name, Directory = e.FullPath });
-                    logger.LogInformation($"File {e.Name} deleted");
-                    break;
-                case WatcherChangeTypes.Renamed:
-                    var renamedEvent = (RenamedEventArgs)e;
-                    await mediatr.Send(new FileMessage { MessageType = MessageType.Delete, FileName = renamedEvent.OldName, Directory = renamedEvent.OldFullPath });
-                    await mediatr.Send(new FileMessage { MessageType = MessageType.Create, FileName = renamedEvent.Name, Directory = renamedEvent.FullPath });
-                    logger.LogInformation($"File {renamedEvent.OldName} renamed to {renamedEvent.Name}");
-                    break;
+                logger.LogInformation($"event for file {e.Name} already in the queue");
             }
         }
 
         private void OnError(object sender, ErrorEventArgs e)
         {
             logger.LogError(e.GetException(), "An error occurred in the file watcher.");
+        }
+
+        private static FileEventType ConvertEventTypes(WatcherChangeTypes wct)
+        {
+            switch (wct)
+            {
+                case WatcherChangeTypes.Deleted:
+                    return FileEventType.Delete;
+                case WatcherChangeTypes.Renamed:
+                    return FileEventType.Rename;
+                case WatcherChangeTypes.Changed:
+                case WatcherChangeTypes.Created:
+                    return FileEventType.Upsert;
+                default:
+                    return FileEventType.Ignore;
+            }
         }
     }
 }

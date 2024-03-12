@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 
 namespace KernelMemory.FileWatcher.Messages
 {
-    internal enum MessageType
+    internal enum FileEventType
     {
-        Create,
-        Update,
-        Delete
+        Upsert,
+        Delete,
+        Rename,
+        Ignore
     }
 }

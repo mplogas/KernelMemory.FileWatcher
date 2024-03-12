@@ -1,7 +1,5 @@
 ﻿using KernelMemory.FileWatcher.Configuration;
-using KernelMemory.FileWatcher.Messages;
 using KernelMemory.FileWatcher.Services;
-using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,18 +14,18 @@ namespace KernelMemory.FileWatcher
         {
             using var host = CreateHostBuilder(args).Build();
 
-            await StartWatcher(host.Services);
+            StartWatcher(host.Services);
 
             await host.RunAsync();
         }
 
-        private static async Task StartWatcher(IServiceProvider services)
+        private static void StartWatcher(IServiceProvider services)
         {
             using var scope = services.CreateScope();
             var provider = scope.ServiceProvider;
 
             var fileWatcher = provider.GetRequiredService<IFileWatcherService>();
-            await fileWatcher.Watch();
+            fileWatcher.Watch();
         }
 
         private static IHostBuilder CreateHostBuilder(string[] args)
@@ -56,6 +54,7 @@ namespace KernelMemory.FileWatcher
                 {
                     services.Configure<FileWatcherOptions>(configuration.GetSection("FileWatcher"));
                     services.AddLogging(c => c.AddSerilog().AddConsole());
+                    services.AddSingleton<IMessageStore, MessageStore>();
                     services.AddHttpClient();
                     services.AddMediatR(cfg =>
                     {
@@ -63,7 +62,6 @@ namespace KernelMemory.FileWatcher
                     });
                     services.AddSingleton<IFileWatcherFactory, FileWatcherFactory>();
                     services.AddScoped<IFileWatcherService, FileWatcherService>();
-                    services.AddScoped<IRequestHandler<FileMessage>, FileMessageHandlerService>();
                 })
                 .UseConsoleLifetime();
         }
