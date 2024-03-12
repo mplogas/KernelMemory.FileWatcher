@@ -3,6 +3,7 @@ using System.Text;
 using KernelMemory.FileWatcher.Configuration;
 using KernelMemory.FileWatcher.Messages;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ObjectPool;
 using Microsoft.Extensions.Options;
 
 namespace KernelMemory.FileWatcher.Services
@@ -19,6 +20,7 @@ namespace KernelMemory.FileWatcher.Services
         private readonly ConcurrentBag<Message> bag = new();
         private readonly ILogger<MessageStore> logger;
         private readonly FileWatcherOptions options;
+        private readonly ObjectPool<StringBuilder> pool = new DefaultObjectPoolProvider().CreateStringBuilderPool();
 
         public MessageStore(ILogger<MessageStore> logger, IOptions<FileWatcherOptions> options)
         {
@@ -28,20 +30,15 @@ namespace KernelMemory.FileWatcher.Services
 
         public Task Add(FileEvent fileEvent)
         {
-            const char separator = '-';
+            const char separator = '_';
             var option = options.Directories.FirstOrDefault(d => fileEvent.Directory.StartsWith(d.Path));
 
             if (option != null && fileEvent.Directory.StartsWith(option.Path))
             {
-                var s = fileEvent.Directory[option.Path.Length..].Split(Path.DirectorySeparatorChar);
-                var sb = new StringBuilder(option.Index);
-                foreach (var subfolder in s)
-                {
-                    sb.Append(separator);
-                    sb.Append(subfolder);
-                }
+                var sb = pool.Get();
+                sb.Append(option.Index);
                 sb.Append(separator);
-                sb.Append(fileEvent.FileName);
+                sb.Append(fileEvent.FileName.Replace(Path.DirectorySeparatorChar, separator));
 
                 var item = new Message
                 {
@@ -50,6 +47,7 @@ namespace KernelMemory.FileWatcher.Services
                     DocumentId = sb.ToString()
                 };
 
+                pool.Return(sb);
                 bag.Add(item);
                 logger.LogInformation($"Added event for file {item.Event.FileName} of type {item.Event.EventType} to the store");
             }
