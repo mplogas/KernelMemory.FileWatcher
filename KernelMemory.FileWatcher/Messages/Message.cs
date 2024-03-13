@@ -2,7 +2,7 @@
 
 internal class Message
 {
-    public FileEvent Event { get; set; }
+    public FileEvent? Event { get; set; }
     public string Index { get; set; } = string.Empty;
     public string DocumentId { get; set; } = string.Empty;
 }

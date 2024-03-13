@@ -11,13 +11,12 @@ namespace KernelMemory.FileWatcher.Services
     internal interface IMessageStore
     {
         Task Add(FileEvent fileEvent);
-        public Message Take(Func<Message, bool> predicate);
-        public bool Peek(Func<Message, bool> predicate);
+        public Message? TakeNext();
     }
 
     internal class MessageStore : IMessageStore
     {
-        private readonly ConcurrentBag<Message> bag = new();
+        private readonly ConcurrentDictionary<string, Message> store = new();
         private readonly ILogger<MessageStore> logger;
         private readonly FileWatcherOptions options;
         private readonly ObjectPool<StringBuilder> pool = new DefaultObjectPoolProvider().CreateStringBuilderPool();
@@ -30,26 +29,28 @@ namespace KernelMemory.FileWatcher.Services
 
         public Task Add(FileEvent fileEvent)
         {
+            ArgumentNullException.ThrowIfNull(fileEvent);
+            if (fileEvent.EventType == FileEventType.Ignore)
+            {
+                return Task.CompletedTask;
+            }
+
             const char separator = '_';
             var option = options.Directories.FirstOrDefault(d => fileEvent.Directory.StartsWith(d.Path));
 
             if (option != null && fileEvent.Directory.StartsWith(option.Path))
             {
-                var sb = pool.Get();
-                sb.Append(option.Index);
-                sb.Append(separator);
-                sb.Append(fileEvent.FileName.Replace(Path.DirectorySeparatorChar, separator));
+                var documentId = BuildDocumentId(option.Index, fileEvent.FileName);
 
                 var item = new Message
                 {
                     Event = fileEvent,
                     Index = option.Index,
-                    DocumentId = sb.ToString()
+                    DocumentId = documentId
                 };
 
-                pool.Return(sb);
-                bag.Add(item);
-                logger.LogInformation($"Added event for file {item.Event.FileName} of type {item.Event.EventType} to the store");
+                store.AddOrUpdate(item.DocumentId, item, (key, message) => item);
+                logger.LogInformation($"Added event {documentId} for file {item.Event.FileName} of type {item.Event.EventType} to the store");
             }
             else
             {
@@ -58,44 +59,23 @@ namespace KernelMemory.FileWatcher.Services
             return Task.CompletedTask;
         }
 
-        public Message Take(Func<Message, bool> predicate)
+        public Message? TakeNext()
         {
-            try
-            {
-                //todo: requires a lock, i think maybe a blocking collection would be better vOv
-                var messages = bag.Where(predicate)?.ToList();
-                if (messages != null && messages.Any())
-                {
-                    var mostRecentItem = messages.OrderByDescending(msg => msg.Event.Time).First();
-                    foreach (var msgToRemove in messages)
-                    {
-                        //can't use msgToRemove directly in TryTake, as it's a foreach variable
-                        var msgCopy = msgToRemove;
-                        if (!bag.TryTake(out msgCopy))
-                        {
-                            logger.LogWarning($"Failed to remove file {msgCopy?.Event.FileName ?? "n/a"} from the store");
-                        }
-                        logger.LogInformation($"Removed file {msgCopy?.Event.FileName ?? "n/a"} from the store");
-                    }
-                    return mostRecentItem;
-                }
-                else
-                {
-                    logger.LogWarning("No items matching the predicate were found.");
-                }
-            }
-            catch (Exception e)
-            {
-                this.logger.LogError(e, "Error taking item from queue");
-            }
-            
-            return null;
+            return store.TryRemove(store.Keys.First(), out var message) ? message : null;
         }
 
-        public bool Peek(Func<Message, bool> predicate)
+        private string BuildDocumentId(string index, string fileName)
         {
-            return bag.FirstOrDefault(predicate) != null;
+            const char separator = '_';
+
+            var sb = pool.Get();
+            sb.Append(index);
+            sb.Append(separator);
+            sb.Append(fileName.Replace(Path.DirectorySeparatorChar, separator).Replace(' ', separator));
+            var result = sb.ToString();
+            pool.Return(sb);
+
+            return result;
         }
     }
 }
-

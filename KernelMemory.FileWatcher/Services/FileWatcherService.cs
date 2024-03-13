@@ -43,15 +43,16 @@ namespace KernelMemory.FileWatcher.Services
 
         private void EnqueueEvent(object sender, FileSystemEventArgs e)
         {
-            //we need to throttle the events here, as filewatcher can raise multiple events (of the same type) for a single file change
             var eventType = ConvertEventTypes(e.ChangeType);
-            if (!messageStore.Peek(i => i.Event.FileName==e.Name && i.Event.EventType.Equals(eventType)))
+            if (eventType == FileEventType.Rename)
             {
-                messageStore.Add(new FileEvent { EventType = eventType, FileName = e.Name ?? "n/a", Directory = e.FullPath });
+                var args = (RenamedEventArgs)e;
+                messageStore.Add(new FileEvent { EventType = FileEventType.Delete, FileName = args.OldName ?? "n/a", Directory = args.OldFullPath }); //filename n/a is pretty useless but the compiler is ruthless with nullable warnings
+                messageStore.Add(new FileEvent { EventType = FileEventType.Upsert, FileName = args.Name ?? "n/a", Directory = args.FullPath });
             }
             else
             {
-                logger.LogInformation($"event for file {e.Name} already in the queue");
+                messageStore.Add(new FileEvent { EventType = eventType, FileName = e.Name ?? "n/a", Directory = e.FullPath });
             }
         }
 
