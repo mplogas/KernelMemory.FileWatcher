@@ -27,6 +27,7 @@ namespace KernelMemory.FileWatcher.Services
 
         public void Watch()
         {
+
             foreach (var directory in options.Directories)
             {
                 var watcher = fileWatcherFactory.Create(directory.Path, directory.Filter, directory.IncludeSubdirectories);
@@ -38,13 +39,31 @@ namespace KernelMemory.FileWatcher.Services
                 watcher.Error += OnError;
 
                 watcher.EnableRaisingEvents = true;
+
+                if (directory.InitialScan)
+                {
+                    Task.Run(() => InitialScan(directory));
+                }
+                logger.LogInformation($"Watching {directory.Path}");
             }
+        }
+
+        private Task InitialScan(FileWatcherDirectoryOptions directory)
+        {
+            var files = System.IO.Directory.GetFiles(directory.Path, directory.Filter, directory.IncludeSubdirectories ? System.IO.SearchOption.AllDirectories : System.IO.SearchOption.TopDirectoryOnly);
+            foreach (var file in files)
+            {
+                messageStore.Add(new FileEvent { EventType = FileEventType.Upsert, FileName = System.IO.Path.GetFileName(file), Directory = file });
+            }
+            logger.LogInformation($"Initial scan completed for {directory.Path}");
+
+            return Task.CompletedTask;
         }
 
         private void EnqueueEvent(object sender, FileSystemEventArgs e)
         {
             var eventType = ConvertEventTypes(e.ChangeType);
-            if (eventType == FileEventType.Rename)
+            if (e.ChangeType == WatcherChangeTypes.Renamed)
             {
                 var args = (RenamedEventArgs)e;
                 messageStore.Add(new FileEvent { EventType = FileEventType.Delete, FileName = args.OldName ?? "n/a", Directory = args.OldFullPath }); //filename n/a is pretty useless but the compiler is ruthless with nullable warnings
@@ -67,8 +86,6 @@ namespace KernelMemory.FileWatcher.Services
             {
                 case WatcherChangeTypes.Deleted:
                     return FileEventType.Delete;
-                case WatcherChangeTypes.Renamed:
-                    return FileEventType.Rename;
                 case WatcherChangeTypes.Changed:
                 case WatcherChangeTypes.Created:
                     return FileEventType.Upsert;

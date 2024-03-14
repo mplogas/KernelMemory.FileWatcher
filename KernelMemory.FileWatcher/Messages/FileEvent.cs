@@ -13,5 +13,6 @@ namespace KernelMemory.FileWatcher.Messages
         public string FileName { get; set; } = string.Empty;
         public string Directory { get; set; } = string.Empty;
         public DateTime Time { get; } = DateTime.UtcNow;
+
     }
 }

@@ -37,8 +37,8 @@ namespace KernelMemory.FileWatcher
                 .AddUserSecrets<Program>()
                 .Build();
 
-            FileWatcherOptions options = new();
-            configuration.GetSection("FileWatcher").Bind(options);
+            //FileWatcherOptions options = new();
+            //configuration.GetSection("FileWatcher").Bind(options);
 
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(configuration)
@@ -53,15 +53,23 @@ namespace KernelMemory.FileWatcher
                 .ConfigureServices(services =>
                 {
                     services.Configure<FileWatcherOptions>(configuration.GetSection("FileWatcher"));
+                    services.Configure<KernelMemoryOptions>(configuration.GetSection("KernelMemory"));
                     services.AddLogging(c => c.AddSerilog().AddConsole());
                     services.AddSingleton<IMessageStore, MessageStore>();
-                    services.AddHttpClient();
-                    services.AddMediatR(cfg =>
+                    services.AddHttpClient("km-client", client =>
                     {
-                        cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+                        client.BaseAddress = new Uri(configuration.GetValue<string>("KernelMemory:Endpoint") ??
+                                                     "http://localhost:9001/");
+
+                        var apiKey = configuration.GetValue<string>("KernelMemory:ApiKey") ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(apiKey))
+                        {
+                            client.DefaultRequestHeaders.Add("Authorization", apiKey);
+                        }
                     });
                     services.AddSingleton<IFileWatcherFactory, FileWatcherFactory>();
                     services.AddScoped<IFileWatcherService, FileWatcherService>();
+                    services.AddHostedService<HttpWorker>();
                 })
                 .UseConsoleLifetime();
         }

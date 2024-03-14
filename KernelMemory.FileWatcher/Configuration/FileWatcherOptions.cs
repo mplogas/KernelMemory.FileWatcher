@@ -2,7 +2,6 @@
 {
     internal class FileWatcherOptions
     {
-        public List<FileWatcherDirectoryOptions> Directories { get; set; }
-        public int Cooldown { get; set; }
+        public List<FileWatcherDirectoryOptions> Directories { get; set; } = new();
     }
 }

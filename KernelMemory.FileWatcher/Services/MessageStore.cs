@@ -12,6 +12,7 @@ namespace KernelMemory.FileWatcher.Services
     {
         Task Add(FileEvent fileEvent);
         public Message? TakeNext();
+        public bool HasNext();
     }
 
     internal class MessageStore : IMessageStore
@@ -35,9 +36,7 @@ namespace KernelMemory.FileWatcher.Services
                 return Task.CompletedTask;
             }
 
-            const char separator = '_';
             var option = options.Directories.FirstOrDefault(d => fileEvent.Directory.StartsWith(d.Path));
-
             if (option != null && fileEvent.Directory.StartsWith(option.Path))
             {
                 var documentId = BuildDocumentId(option.Index, fileEvent.FileName);
@@ -62,6 +61,11 @@ namespace KernelMemory.FileWatcher.Services
         public Message? TakeNext()
         {
             return store.TryRemove(store.Keys.First(), out var message) ? message : null;
+        }
+
+        public bool HasNext()
+        {
+            return store.Count > 0;
         }
 
         private string BuildDocumentId(string index, string fileName)

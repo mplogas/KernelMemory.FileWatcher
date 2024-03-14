@@ -10,7 +10,6 @@ namespace KernelMemory.FileWatcher.Messages
     {
         Upsert,
         Delete,
-        Rename,
         Ignore
     }
 }

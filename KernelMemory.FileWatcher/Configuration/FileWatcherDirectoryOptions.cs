@@ -6,5 +6,6 @@
         public string Filter { get; set; }
         public bool IncludeSubdirectories { get; set; }
         public string Index { get; set; }
+        public bool InitialScan { get; set; }
     }
 }
