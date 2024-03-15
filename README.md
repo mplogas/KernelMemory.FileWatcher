@@ -20,10 +20,6 @@ The `FileWatcherService` is responsible for watching specified directories for f
 
 The `HttpWorker` is a hosted service that periodically checks the `MessageStore` for new file events and sends them to the KernelMemory service. It uses an `HttpClient` to send HTTP requests and includes logic for handling different types of file events (e.g., upserts and deletes).
 
-### Program
-
-The `Program` class is the entry point of the application. It sets up the application's configuration, registers services with the dependency injection container, and starts the `FileWatcherService`.
-
 ## How It Works
 
 1. The `FileWatcherService` starts watching the specified directories for file changes.
