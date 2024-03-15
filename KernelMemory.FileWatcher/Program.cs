@@ -37,9 +37,6 @@ namespace KernelMemory.FileWatcher
                 .AddUserSecrets<Program>()
                 .Build();
 
-            //FileWatcherOptions options = new();
-            //configuration.GetSection("FileWatcher").Bind(options);
-
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(configuration)
                 .CreateLogger();

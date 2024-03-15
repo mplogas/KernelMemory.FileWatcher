@@ -1,8 +1,9 @@
-﻿namespace KernelMemory.FileWatcher.Messages;
-
-internal class Message
+﻿namespace KernelMemory.FileWatcher.Messages
 {
-    public FileEvent? Event { get; set; }
-    public string Index { get; set; } = string.Empty;
-    public string DocumentId { get; set; } = string.Empty;
+    internal class Message
+    {
+        public FileEvent? Event { get; set; }
+        public string Index { get; set; } = string.Empty;
+        public string DocumentId { get; set; } = string.Empty;
+    }
 }

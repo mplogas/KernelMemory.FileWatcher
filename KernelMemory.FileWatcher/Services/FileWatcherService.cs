@@ -17,7 +17,7 @@ namespace KernelMemory.FileWatcher.Services
         private readonly FileWatcherOptions options;
         private readonly IMessageStore messageStore;
 
-        public FileWatcherService(ILogger<FileWatcherService> logger,IFileWatcherFactory fileWatcherFactory,IMessageStore messageStore,IOptions<FileWatcherOptions> options)
+        public FileWatcherService(ILogger<FileWatcherService> logger, IFileWatcherFactory fileWatcherFactory, IMessageStore messageStore, IOptions<FileWatcherOptions> options)
         {
             this.logger = logger;
             this.fileWatcherFactory = fileWatcherFactory;
@@ -50,10 +50,10 @@ namespace KernelMemory.FileWatcher.Services
 
         private Task InitialScan(FileWatcherDirectoryOptions directory)
         {
-            var files = System.IO.Directory.GetFiles(directory.Path, directory.Filter, directory.IncludeSubdirectories ? System.IO.SearchOption.AllDirectories : System.IO.SearchOption.TopDirectoryOnly);
+            var files = Directory.GetFiles(directory.Path, directory.Filter, directory.IncludeSubdirectories ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
             foreach (var file in files)
             {
-                messageStore.Add(new FileEvent { EventType = FileEventType.Upsert, FileName = System.IO.Path.GetFileName(file), Directory = file });
+                messageStore.Add(new FileEvent { EventType = FileEventType.Upsert, FileName = Path.GetFileName(file), Directory = file });
             }
             logger.LogInformation($"Initial scan completed for {directory.Path}");
 

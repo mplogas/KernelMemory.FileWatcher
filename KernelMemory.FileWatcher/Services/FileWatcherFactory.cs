@@ -37,6 +37,7 @@
                                    | NotifyFilters.LastWrite
                                    | NotifyFilters.Size;
             watcher.EnableRaisingEvents = true;
+            watcher.IncludeSubdirectories = recursive;
 
             return watcher;
         }

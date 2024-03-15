@@ -1,10 +1,10 @@
-﻿using System.Collections.Concurrent;
-using System.Text;
-using KernelMemory.FileWatcher.Configuration;
+﻿using KernelMemory.FileWatcher.Configuration;
 using KernelMemory.FileWatcher.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
+using System.Text;
 
 namespace KernelMemory.FileWatcher.Services
 {
@@ -48,7 +48,7 @@ namespace KernelMemory.FileWatcher.Services
                     DocumentId = documentId
                 };
 
-                store.AddOrUpdate(item.DocumentId, item, (key, message) => item);
+                store.AddOrUpdate(item.DocumentId, item, (_, _) => item);
                 logger.LogInformation($"Added event {documentId} for file {item.Event.FileName} of type {item.Event.EventType} to the store");
             }
             else

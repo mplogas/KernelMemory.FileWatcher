@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http.Json;
-using System.Text;
-using System.Threading.Tasks;
-using KernelMemory.FileWatcher.Configuration;
+﻿using KernelMemory.FileWatcher.Configuration;
 using KernelMemory.FileWatcher.Messages;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,7 +12,7 @@ namespace KernelMemory.FileWatcher.Services
         private readonly IHttpClientFactory httpClientFactory;
         private readonly IMessageStore store;
         private readonly KernelMemoryOptions options;
-        private PeriodicTimer? timer = null;
+        private PeriodicTimer? timer;
 
         public HttpWorker(ILogger<HttpWorker> logger, IOptions<KernelMemoryOptions> options, IHttpClientFactory httpClientFactory, IMessageStore messageStore)
         {
@@ -27,7 +21,7 @@ namespace KernelMemory.FileWatcher.Services
             this.httpClientFactory = httpClientFactory;
             this.store = messageStore;
         }
-        
+
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             logger.LogInformation("Starting HttpWorker");
@@ -40,10 +34,10 @@ namespace KernelMemory.FileWatcher.Services
                     if (message != null && message.Event?.EventType != FileEventType.Ignore)
                     {
                         var client = httpClientFactory.CreateClient("km-client");
-                        var endpoint = string.Empty;
-                        HttpResponseMessage response = null;
+                        string endpoint;
+                        HttpResponseMessage response = null!;
 
-                        if (message.Event.EventType == FileEventType.Upsert)
+                        if (message.Event is { EventType: FileEventType.Upsert })
                         {
                             endpoint = "/upload";
 
@@ -54,15 +48,15 @@ namespace KernelMemory.FileWatcher.Services
                             content.Add(new StringContent(message.DocumentId), "documentid");
                             response = await client.PostAsync(endpoint, content, cancellationToken);
                         }
-                        else if (message.Event.EventType == FileEventType.Delete)
+                        else if (message.Event is { EventType: FileEventType.Delete })
                         {
                             endpoint = $"/documents?index={message.Index}&documentId={message.DocumentId}";
                             response = await client.DeleteAsync(endpoint, cancellationToken);
                         }
 
-                        if(response != null && response.IsSuccessStatusCode)
+                        if (response.IsSuccessStatusCode)
                         {
-                            logger.LogInformation($"{message.Event.EventType} message {message.DocumentId} to {options.Endpoint}");
+                            logger.LogInformation($"Sent message {message.DocumentId} to {options.Endpoint}");
                         }
                         else
                         {
@@ -70,7 +64,7 @@ namespace KernelMemory.FileWatcher.Services
                         }
                     }
                 }
-                
+
             }
         }
 
