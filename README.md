@@ -1,5 +1,5 @@
 # KernelMemory.FileWatcher 
-## A service for automating document ingestion for Semantic Kernel's KernelMemory service
+## Automated document ingestion for Semantic Kernel's KernelMemory service
 
 
 ## Overview
@@ -65,3 +65,21 @@ The service's configuration is defined in the `appsettings.json` file. Here you 
 In the `FileWatcher` section, you can specify multiple directories to watch. For each directory, you can specify a path, a filter for the types of files to watch, an index, and whether to include subdirectories.
 
 In the `KernelMemory` section, you can specify the endpoint of the KernelMemory service, your API key, and the schedule for the `HttpWorker` to check for new file events.
+
+## Running the Service
+
+To run the service, you can either run the `KernelMemory.FileWatcher` project directly or build and run the Docker container.
+
+### Running as a Standalone Service
+
+To run the service as a standalone service, you can build and run the `KernelMemory.FileWatcher` project using the following commands:
+
+```bash
+dotnet run --project KernelMemory.FileWatcher
+```
+
+### Running as a Docker Container
+
+```sh
+docker run -v /path/to/your/appsettings.json:/config/appsettings.json -v /path/to/your/documents-01:/data/documents-01 mplogas/km-filewatcher:latest
+```
