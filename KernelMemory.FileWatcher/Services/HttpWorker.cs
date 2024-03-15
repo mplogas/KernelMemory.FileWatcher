@@ -39,30 +39,34 @@ namespace KernelMemory.FileWatcher.Services
                     var message = store.TakeNext();
                     if (message != null && message.Event?.EventType != FileEventType.Ignore)
                     {
-                        var endpoint = string.Empty;
-                        var content = new MultipartFormDataContent();
                         var client = httpClientFactory.CreateClient("km-client");
+                        var endpoint = string.Empty;
+                        HttpResponseMessage response = null;
+
                         if (message.Event.EventType == FileEventType.Upsert)
                         {
                             endpoint = "/upload";
+
+                            var content = new MultipartFormDataContent();
                             var fileContent = new StreamContent(File.OpenRead(message.Event.Directory));
                             content.Add(fileContent, "file", message.Event.FileName);
+                            content.Add(new StringContent(message.Index), "index");
+                            content.Add(new StringContent(message.DocumentId), "documentid");
+                            response = await client.PostAsync(endpoint, content, cancellationToken);
                         }
                         else if (message.Event.EventType == FileEventType.Delete)
                         {
-                            endpoint = "/delete";
+                            endpoint = $"/documents?index={message.Index}&documentId={message.DocumentId}";
+                            response = await client.DeleteAsync(endpoint, cancellationToken);
                         }
-                        content.Add(new StringContent(message.Index), "index");
-                        content.Add(new StringContent(message.DocumentId), "documentid");
 
-                        var response = await client.PostAsync(endpoint, content, cancellationToken);
-                        if (response.IsSuccessStatusCode)
+                        if(response != null && response.IsSuccessStatusCode)
                         {
-                            logger.LogInformation($"Posted message {message.DocumentId} to {options.Endpoint}");
+                            logger.LogInformation($"{message.Event.EventType} message {message.DocumentId} to {options.Endpoint}");
                         }
                         else
                         {
-                            logger.LogError($"Failed to post message {message.DocumentId} to {options.Endpoint}");
+                            logger.LogError($"Failed to send message {message.DocumentId} to {options.Endpoint}");
                         }
                     }
                 }
