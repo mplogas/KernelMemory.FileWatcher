@@ -30,7 +30,7 @@ namespace KernelMemory.FileWatcher
 
         private static IHostBuilder CreateHostBuilder(string[] args)
         {
-            var basePath = AppContext.BaseDirectory;
+            var basePath = File.Exists("/config/appsettings.json") ? "/config" : AppContext.BaseDirectory;
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(basePath)
                 .AddJsonFile("appsettings.json", false)

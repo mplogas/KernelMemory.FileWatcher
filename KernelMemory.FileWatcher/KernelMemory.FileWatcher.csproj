@@ -5,6 +5,9 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+	  <DockerfileRunArguments>-v G:\docker\km-filewatcher\appsettings.json:/config/appsettings.json:rw -v E:\Resilio\Obsidian\PersonalVault\talks:/data/notes-talks:ro</DockerfileRunArguments>
+	  <DockerfileBuildArguments>-t mplogas/km-filewatcher:dev</DockerfileBuildArguments>
   </PropertyGroup>
 
 <ItemGroup>
@@ -22,6 +25,7 @@
 	</PackageReference>
 	<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
 	<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.3" />
+	<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.5" />
 	<PackageReference Include="Serilog" Version="3.1.1">
 	  <TreatAsUsed>true</TreatAsUsed>
 	</PackageReference>

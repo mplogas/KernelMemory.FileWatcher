@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "KernelMemory.FileWatcher": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}
