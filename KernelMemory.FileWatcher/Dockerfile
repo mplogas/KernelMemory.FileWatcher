@@ -12,11 +12,8 @@ WORKDIR /src
 COPY ["./KernelMemory.FileWatcher.csproj", "./"]
 RUN dotnet restore ./KernelMemory.FileWatcher.csproj
 COPY . ./
-RUN dotnet build "./KernelMemory.FileWatcher.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet publish "./KernelMemory.FileWatcher.csproj" -c $BUILD_CONFIGURATION -o /app/publish
 
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./KernelMemory.FileWatcher.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
