@@ -30,7 +30,7 @@ namespace KernelMemory.FileWatcher.Services
 
             foreach (var directory in options.Directories)
             {
-                var watcher = directory.Filters.Any() ? fileWatcherFactory.Create(directory.Path, directory.Filters, directory.IncludeSubdirectories) : fileWatcherFactory.Create(directory.Path, directory.Filter, directory.IncludeSubdirectories);
+                var watcher = fileWatcherFactory.Create(directory.Path, directory.Filter, directory.IncludeSubdirectories);
 
                 watcher.Changed += EnqueueEvent;
                 watcher.Created += EnqueueEvent;
