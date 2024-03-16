@@ -40,7 +40,6 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: ./KernelMemory.FileWatcher
-        dockerfile: ./KernelMemory.FileWatcher/Dockerfile
         push: true
         platforms: linux/amd64,linux/arm64
         labels: ${{ steps.meta.outputs.labels }}
