@@ -4,6 +4,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Contrib.WaitAndRetry;
+using Polly.Extensions.Http;
 using Serilog;
 
 namespace KernelMemory.FileWatcher
@@ -57,18 +60,28 @@ namespace KernelMemory.FileWatcher
                     {
                         client.BaseAddress = new Uri(configuration.GetValue<string>("KernelMemory:Endpoint") ??
                                                      "http://localhost:9001/");
-
                         var apiKey = configuration.GetValue<string>("KernelMemory:ApiKey") ?? string.Empty;
                         if (!string.IsNullOrWhiteSpace(apiKey))
                         {
                             client.DefaultRequestHeaders.Add("Authorization", apiKey);
                         }
-                    });
+                    }).AddPolicyHandler(GetRetryPolicy(configuration.GetValue<int>("KernelMemory:Retries", 2)));
                     services.AddSingleton<IFileWatcherFactory, FileWatcherFactory>();
                     services.AddScoped<IFileWatcherService, FileWatcherService>();
                     services.AddHostedService<HttpWorker>();
                 })
                 .UseConsoleLifetime();
+        }
+
+        private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy(int retries)
+        {
+            var delay = Backoff.DecorrelatedJitterBackoffV2(medianFirstRetryDelay: TimeSpan.FromSeconds(1), retryCount: retries, fastFirst: true);
+
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.NotFound)
+                //.WaitAndRetryAsync(retries, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+                .WaitAndRetryAsync(delay);
         }
     }
 }
