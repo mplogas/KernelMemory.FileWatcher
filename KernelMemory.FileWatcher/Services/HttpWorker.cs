@@ -3,6 +3,8 @@ using KernelMemory.FileWatcher.Messages;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Threading;
+using Serilog.Data;
 
 namespace KernelMemory.FileWatcher.Services
 {
@@ -28,43 +30,63 @@ namespace KernelMemory.FileWatcher.Services
             timer = new PeriodicTimer(options.Schedule);
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                while (store.HasNext())
+                var messages = store.TakeAll();
+                if (messages.Any())
                 {
-                    var message = store.TakeNext();
-                    if (message != null && message.Event?.EventType != FileEventType.Ignore)
+                    var tasks = new List<Action>();
+
+                    foreach (var message in messages)
                     {
-                        var client = httpClientFactory.CreateClient("km-client");
-                        string endpoint;
-                        HttpResponseMessage response = null!;
+                        tasks.Add(async () =>
+                        {
+                            if (message.Event?.EventType != FileEventType.Ignore)
+                            {
+                                logger.LogInformation($"Processing message {message.DocumentId} for file {message.Event?.FileName} of type {message.Event?.EventType}");
+                                var client = httpClientFactory.CreateClient("km-client");
+                                string endpoint;
+                                HttpResponseMessage? response = null;
 
-                        if (message.Event is { EventType: FileEventType.Upsert })
-                        {
-                            endpoint = "/upload";
+                                if (message.Event is { EventType: FileEventType.Upsert })
+                                {
+                                    endpoint = "/upload";
 
-                            var content = new MultipartFormDataContent();
-                            var fileContent = new StreamContent(File.OpenRead(message.Event.Directory));
-                            content.Add(fileContent, "file", message.Event.FileName);
-                            content.Add(new StringContent(message.Index), "index");
-                            content.Add(new StringContent(message.DocumentId), "documentid");
-                            response = await client.PostAsync(endpoint, content, cancellationToken);
-                        }
-                        else if (message.Event is { EventType: FileEventType.Delete })
-                        {
-                            endpoint = $"/documents?index={message.Index}&documentId={message.DocumentId}";
-                            response = await client.DeleteAsync(endpoint, cancellationToken);
-                        }
+                                    var content = new MultipartFormDataContent();
+                                    var fileContent = new StreamContent(File.OpenRead(message.Event.Directory));
+                                    content.Add(fileContent, "file", message.Event.FileName);
+                                    content.Add(new StringContent(message.Index), "index");
+                                    content.Add(new StringContent(message.DocumentId), "documentid");
+                                    response = await client.PostAsync(endpoint, content);
+                                }
+                                else if (message.Event is { EventType: FileEventType.Delete })
+                                {
+                                    endpoint = $"/documents?index={message.Index}&documentId={message.DocumentId}";
+                                    response = await client.DeleteAsync(endpoint);
+                                }
 
-                        if (response.IsSuccessStatusCode)
-                        {
-                            logger.LogInformation($"Sent message {message.DocumentId} to {options.Endpoint}");
-                        }
-                        else
-                        {
-                            logger.LogError($"Failed to send message {message.DocumentId} to {options.Endpoint}");
-                        }
+                                if (response is { IsSuccessStatusCode: true })
+                                {
+                                    logger.LogInformation($"Sent message {message.DocumentId} to {options.Endpoint}");
+                                }
+                                else
+                                {
+                                    logger.LogError($"Failed to send message {message.DocumentId} to {options.Endpoint}");
+                                }
+                            }
+                        });
                     }
-                }
 
+                    var parallelOptions = new ParallelOptions
+                    {
+                        CancellationToken = cancellationToken,
+                        MaxDegreeOfParallelism = options.ParallelUploads
+                    };
+                    Parallel.Invoke(parallelOptions, tasks.ToArray());
+
+                }
+                else
+                {
+                    logger.LogInformation("Nothing to process");
+                }
             }
         }
 

@@ -12,6 +12,7 @@ namespace KernelMemory.FileWatcher.Services
     {
         Task Add(FileEvent fileEvent);
         public Message? TakeNext();
+        public List<Message> TakeAll();
         public bool HasNext();
     }
 
@@ -61,6 +62,18 @@ namespace KernelMemory.FileWatcher.Services
         public Message? TakeNext()
         {
             return store.TryRemove(store.Keys.First(), out var message) ? message : null;
+        }
+
+        public List<Message> TakeAll()
+        {
+            var result = new List<Message>();
+            foreach (var key in store.Keys)
+            {
+                store.TryRemove(key, out var message);
+                if(message!=null) { result.Add(message); }
+            }
+
+            return result;
         }
 
         public bool HasNext()
