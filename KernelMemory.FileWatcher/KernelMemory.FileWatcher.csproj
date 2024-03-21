@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-	<DockerfileRunArguments>-v G:\docker\km-filewatcher\appsettings.json:/config/appsettings.json:rw -v E:\Resilio\Obsidian\PersonalVault\talks:/data/notes-talks:ro</DockerfileRunArguments>
+	<DockerfileRunArguments>-v G:\docker\km-filewatcher\appsettings.json:/config/appsettings.json:rw -v G:\tmp\km-filewatcher\folder_02:/data/folder_02:ro</DockerfileRunArguments>
     <ContainerRepository>km-filewatcher</ContainerRepository>
   </PropertyGroup>
   <ItemGroup>
