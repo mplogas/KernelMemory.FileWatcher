@@ -3,18 +3,15 @@ using KernelMemory.FileWatcher.Messages;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Threading;
-using Serilog.Data;
 
 namespace KernelMemory.FileWatcher.Services
 {
-    internal class HttpWorker : IHostedService, IDisposable
+    internal class HttpWorker : BackgroundService
     {
         private readonly ILogger<HttpWorker> logger;
         private readonly IHttpClientFactory httpClientFactory;
         private readonly IMessageStore store;
         private readonly KernelMemoryOptions options;
-        private PeriodicTimer? timer;
 
         public HttpWorker(ILogger<HttpWorker> logger, IOptions<KernelMemoryOptions> options, IHttpClientFactory httpClientFactory, IMessageStore messageStore)
         {
@@ -24,79 +21,72 @@ namespace KernelMemory.FileWatcher.Services
             this.store = messageStore;
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            logger.LogInformation("Starting HttpWorker");
-            timer = new PeriodicTimer(options.Schedule);
-            while (await timer.WaitForNextTickAsync(cancellationToken))
+            this.logger.LogInformation("Starting HttpWorker");
+            
+            using PeriodicTimer timer = new PeriodicTimer(options.Schedule);
+            try
             {
-                var messages = store.TakeAll();
-                if (messages.Any())
+                while (await timer.WaitForNextTickAsync(stoppingToken) && !stoppingToken.IsCancellationRequested)
                 {
-                    var tasks = new List<Action>();
-
-                    foreach (var message in messages)
+                    var messages = store.TakeAll();
+                    if (messages.Any())
                     {
-                        tasks.Add(async () =>
+                        var parallelOptions = new ParallelOptions
                         {
-                            if (message.Event?.EventType != FileEventType.Ignore)
-                            {
-                                logger.LogInformation($"Processing message {message.DocumentId} for file {message.Event?.FileName} of type {message.Event?.EventType}");
-                                var client = httpClientFactory.CreateClient("km-client");
-                                string endpoint;
-                                HttpResponseMessage? response = null;
-
-                                if (message.Event is { EventType: FileEventType.Upsert })
-                                {
-                                    endpoint = "/upload";
-
-                                    var content = new MultipartFormDataContent();
-                                    var fileContent = new StreamContent(File.OpenRead(message.Event.Directory));
-                                    content.Add(fileContent, "file", message.Event.FileName);
-                                    content.Add(new StringContent(message.Index), "index");
-                                    content.Add(new StringContent(message.DocumentId), "documentid");
-                                    response = await client.PostAsync(endpoint, content);
-                                }
-                                else if (message.Event is { EventType: FileEventType.Delete })
-                                {
-                                    endpoint = $"/documents?index={message.Index}&documentId={message.DocumentId}";
-                                    response = await client.DeleteAsync(endpoint);
-                                }
-
-                                if (response is { IsSuccessStatusCode: true })
-                                {
-                                    logger.LogInformation($"Sent message {message.DocumentId} to {options.Endpoint}");
-                                }
-                                else
-                                {
-                                    logger.LogError($"Failed to send message {message.DocumentId} to {options.Endpoint}");
-                                }
-                            }
-                        });
+                            CancellationToken = stoppingToken,
+                            MaxDegreeOfParallelism = options.ParallelUploads
+                        };
+                        Parallel.Invoke(parallelOptions, messages.Select(message => (Action)(() => BuildMessageTask(message, stoppingToken))).ToArray());
                     }
-
-                    var parallelOptions = new ParallelOptions
+                    else
                     {
-                        CancellationToken = cancellationToken,
-                        MaxDegreeOfParallelism = options.ParallelUploads
-                    };
-                    Parallel.Invoke(parallelOptions, tasks.ToArray());
-
+                        logger.LogInformation("Nothing to process");
+                    
+                    }
                 }
-                else
-                {
-                    logger.LogInformation("Nothing to process");
-                }
+            } catch (OperationCanceledException)
+            {
+                this.logger.LogInformation("Stopping HttpWorker");
             }
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        private async Task BuildMessageTask(Message message, CancellationToken stoppingToken)
         {
-            return Task.CompletedTask;
-        }
-        public void Dispose()
-        {
-            timer?.Dispose();
+            if (message.Event?.EventType != FileEventType.Ignore)
+            {
+                logger.LogInformation($"Processing message {message.DocumentId} for file {message.Event?.FileName} of type {message.Event?.EventType}");
+                var client = httpClientFactory.CreateClient("km-client");
+                string endpoint;
+                HttpResponseMessage? response = null;
+
+                if (message.Event is { EventType: FileEventType.Upsert })
+                {
+                    endpoint = "/upload";
+
+                    var content = new MultipartFormDataContent();
+                    var fileContent = new StreamContent(File.OpenRead(message.Event.Directory));
+                    content.Add(fileContent, "file", message.Event.FileName);
+                    content.Add(new StringContent(message.Index), "index");
+                    content.Add(new StringContent(message.DocumentId), "documentid");
+                    response = await client.PostAsync(endpoint, content, stoppingToken);
+                }
+                else if (message.Event is { EventType: FileEventType.Delete })
+                {
+                    endpoint = $"/documents?index={message.Index}&documentId={message.DocumentId}";
+                    response = await client.DeleteAsync(endpoint, stoppingToken);
+                }
+
+                if (response is { IsSuccessStatusCode: true })
+                {
+                    logger.LogInformation($"Sent message {message.DocumentId} to {options.Endpoint}");
+                }
+                else
+                {
+                    logger.LogError($"Failed to send message {message.DocumentId} to {options.Endpoint}");
+                }
+            }
         }
     }
 }

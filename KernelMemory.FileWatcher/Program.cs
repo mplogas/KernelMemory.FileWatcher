@@ -8,6 +8,7 @@ using Polly;
 using Polly.Contrib.WaitAndRetry;
 using Polly.Extensions.Http;
 using Serilog;
+using Serilog.Events;
 
 namespace KernelMemory.FileWatcher
 {
@@ -16,7 +17,6 @@ namespace KernelMemory.FileWatcher
         static async Task Main(string[] args)
         {
             using var host = CreateHostBuilder(args).Build();
-
             StartWatcher(host.Services);
 
             await host.RunAsync();
@@ -33,16 +33,19 @@ namespace KernelMemory.FileWatcher
 
         private static IHostBuilder CreateHostBuilder(string[] args)
         {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                .Enrich.FromLogContext()
+                .WriteTo.Console()
+                .CreateBootstrapLogger();
+            
             var basePath = File.Exists("/config/appsettings.json") ? "/config" : AppContext.BaseDirectory;
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(basePath)
                 .AddJsonFile("appsettings.json", false)
                 .AddUserSecrets<Program>()
+                .AddEnvironmentVariables()
                 .Build();
-
-            Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(configuration)
-                .CreateLogger();
 
             return Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration(builder =>
@@ -52,9 +55,15 @@ namespace KernelMemory.FileWatcher
                 })
                 .ConfigureServices(services =>
                 {
+                    services.AddSerilog((services, lc) => lc
+                        .ReadFrom.Services(services)
+                        .Enrich.FromLogContext()
+                        .WriteTo.Console()
+                        .WriteTo.File(Path.Exists("/config/logs") ? "/config/logs/km-filewatcher.log" : "logs/km-filewatcher.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14)
+                        .MinimumLevel.Warning()
+                        .ReadFrom.Configuration(configuration));
                     services.Configure<FileWatcherOptions>(configuration.GetSection("FileWatcher"));
                     services.Configure<KernelMemoryOptions>(configuration.GetSection("KernelMemory"));
-                    services.AddLogging(c => c.AddSerilog().AddConsole());
                     services.AddSingleton<IMessageStore, MessageStore>();
                     services.AddHttpClient("km-client", client =>
                     {
